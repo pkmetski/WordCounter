@@ -4,14 +4,14 @@ namespace WordCounter;
 
 public class WordCounterService
 {
-    public async Task<IDictionary<string, int>> CountWords(string[] filePaths)
+    public async Task<IDictionary<string, int>> CountWords(string[] files)
     {
         var wordCounts = new ConcurrentDictionary<string, int>();
         var parallelOptions = new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount };
 
-        await Parallel.ForEachAsync(filePaths, parallelOptions, async (filePath, _) =>
+        await Parallel.ForEachAsync(files, parallelOptions, async (file, _) =>
         {
-            var lines = File.ReadLines(filePath);
+            var lines = File.ReadLines(file);
 
             await Parallel.ForEachAsync(lines, parallelOptions, async (line, _) =>
             {
