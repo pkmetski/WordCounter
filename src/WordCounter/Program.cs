@@ -1,35 +1,58 @@
-﻿var filePaths = new[]
+﻿//TODO:
+//2. handle large files - memory
+//3. Profiling
+//4. Refactor in different classes
+
+using System.Collections.Concurrent;
+using System.Diagnostics;
+
+var filePaths = new[]
 {
     "/Users/plamen.kmetski/file1.txt",
-    "/Users/plamen.kmetski/file2.txt"
+    "/Users/plamen.kmetski/file2.txt",
+    "/Users/plamen.kmetski/big.txt",
+    "/Users/plamen.kmetski/moby_dick.txt",
+    "/Users/plamen.kmetski/little_women.txt",
+    "/Users/plamen.kmetski/frankenstein.txt",
+    "/Users/plamen.kmetski/dracula.txt",
 };
 
-var wordCounts = new Dictionary<string, int>();
+var wordCounts = new ConcurrentDictionary<string, int>();
 
-CountWords(filePaths, wordCounts);
-PrintCounted(wordCounts);
+var sw = Stopwatch.StartNew();
+await CountWords(filePaths, wordCounts);
+sw.Stop();
+PrintWords(wordCounts);
+Console.WriteLine(sw.ElapsedMilliseconds);
 
-static void CountWords(string[] filePaths, IDictionary<string, int> wordCounts)
+static async Task CountWords(string[] filePaths, ConcurrentDictionary<string, int> wordCounts)
 {
-    foreach (var filePath in filePaths)
+    var processorCount = Environment.ProcessorCount;
+    await Parallel.ForEachAsync(filePaths, new ParallelOptions { MaxDegreeOfParallelism = processorCount }, async (filePath, _) =>
     {
         var lines = File.ReadLines(filePath);
-        foreach (var line in lines)
+
+        await Parallel.ForEachAsync(lines, new ParallelOptions { MaxDegreeOfParallelism = processorCount }, async (line, _) =>
         {
             var words = line.Split(" ");
-            foreach (var word in words)
+
+            await Parallel.ForEachAsync(words, new ParallelOptions { MaxDegreeOfParallelism = processorCount }, (word, _) =>
             {
-                if (!wordCounts.ContainsKey(word))
-                {
-                    wordCounts.Add(word, 0);
-                }
-                wordCounts[word]++;
-            }
-        }
-    }
+                var sanitizedWord = SanitizeWord(word);
+                
+                wordCounts.AddOrUpdate(sanitizedWord, 1, (_, oldValue) => oldValue + 1);
+                return ValueTask.CompletedTask;
+            });
+        });
+    });
 }
 
-static void PrintCounted(IDictionary<string, int> wordCounts)
+static string SanitizeWord(string word)
+{
+   return new string(word.Where(c => !char.IsPunctuation(c)).ToArray());
+}
+
+static void PrintWords(IDictionary<string, int> wordCounts)
 {
     foreach (var wordCount in wordCounts)
     {
